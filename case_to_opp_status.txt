@@ -1,0 +1,43 @@
+public class UpdateOpportunityStatus {
+
+    public static void updateStatus(List<Case> cases) {
+        Map<Id, Case> mostRecentCasesByOpportunityId = new Map<Id, Case>();
+
+        // Find the most recent case record for each opportunity
+        for (Case c : cases) {
+            if (!mostRecentCasesByOpportunityId.containsKey(c.OpportunityId) || 
+                mostRecentCasesByOpportunityId.get(c.OpportunityId).CreatedDate < c.CreatedDate) {
+                mostRecentCasesByOpportunityId.put(c.OpportunityId, c);
+            }
+        }
+
+        Map<String, String> statusMapping = new Map<String, String>{
+            'Open' => 'Pursue',
+            'Waiting for Survey' => 'Survey',
+            'Legal Review' => 'Amzn Review',
+            'Host Approval' => 'Approval',
+            'Pending Install' => 'Asset Loaded',
+            'Install' => 'Install',
+            'Activated' => 'Closed Won',
+            'Cancelled' => 'Closed Lost'
+        };
+
+        List<Opportunity> opportunitiesToUpdate = new List<Opportunity>();
+
+        for (Id oppId : mostRecentCasesByOpportunityId.keySet()) {
+            Case mostRecentCase = mostRecentCasesByOpportunityId.get(oppId);
+            String opportunityStatus = statusMapping.get(mostRecentCase.Status);
+            if (opportunityStatus != null) {
+                Opportunity opp = new Opportunity(
+                    Id = oppId,
+                    StageName = opportunityStatus
+                );
+                opportunitiesToUpdate.add(opp);
+            }
+        }
+
+        if (!opportunitiesToUpdate.isEmpty()) {
+            update opportunitiesToUpdate;
+        }
+    }
+}
