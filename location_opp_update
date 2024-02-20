@@ -1,0 +1,39 @@
+trigger UpdateOpportunityDates on Case (after insert, after update) {
+    Map<Id, Opportunity> oppsToUpdate = new Map<Id, Opportunity>();
+
+    // Collect case records with their associated opportunities
+    List<Id> caseIds = new List<Id>();
+    for (Case c : Trigger.new) {
+        caseIds.add(c.Id);
+    }
+
+    List<Opportunity> opps = [SELECT Id, Survey_Date__c, Install_Date__c, Activation_Date__c,
+                                     (SELECT Id, Status FROM Opportunities WHERE Status != 'Closed')
+                              FROM Case WHERE Id IN :caseIds];
+
+    // Loop through the cases and update associated opportunities
+    for (Case c : Trigger.new) {
+        if (c.Opportunities != null && !c.Opportunities.isEmpty()) {
+            for (Opportunity opp : c.Opportunities) {
+                if (opp.Status != 'Closed') {
+                    // Check if this case record has the most recent dates
+                    if (c.Survey_Date__c != null && (opp.Survey_Date__c == null || c.CreatedDate > opp.Survey_Date__c)) {
+                        opp.Survey_Date__c = c.Survey_Date__c;
+                    }
+                    if (c.Install_Date__c != null && (opp.Install_Date__c == null || c.CreatedDate > opp.Install_Date__c)) {
+                        opp.Install_Date__c = c.Install_Date__c;
+                    }
+                    if (c.Activation_Date__c != null && (opp.Activation_Date__c == null || c.CreatedDate > opp.Activation_Date__c)) {
+                        opp.Activation_Date__c = c.Activation_Date__c;
+                    }
+                    oppsToUpdate.put(opp.Id, opp);
+                }
+            }
+        }
+    }
+
+    // Update the opportunities
+    if (!oppsToUpdate.isEmpty()) {
+        update oppsToUpdate.values();
+    }
+}

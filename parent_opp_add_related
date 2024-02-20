@@ -1,0 +1,55 @@
+public class UpdateLocationOpportunities {
+    
+    public static void updateParentOpportunities() {
+        List<Opportunity> locationOpportunitiesWithoutParent = [SELECT Id, AccountId, Parent_Opportunity__c 
+                                                                FROM Opportunity 
+                                                                WHERE RecordType.DeveloperName = 'Location_Opportunity' 
+                                                                    AND Parent_Opportunity__c = null];
+
+        Map<Id, Id> accountToParentOpportunityMap = new Map<Id, Id>();
+        Set<Id> accountIds = new Set<Id>();
+
+        // Collect AccountIds for Location Opportunities without Parent Opportunities
+        for(Opportunity locOpportunity : locationOpportunitiesWithoutParent) {
+            accountIds.add(locOpportunity.AccountId);
+        }
+
+        // Query for Parent Opportunities related to the Accounts
+        for(Opportunity parentOpportunity : [SELECT Id, AccountId 
+                                              FROM Opportunity 
+                                              WHERE AccountId IN :accountIds 
+                                                AND RecordType.DeveloperName = 'Parent_Opportunity']) {
+            accountToParentOpportunityMap.put(parentOpportunity.AccountId, parentOpportunity.Id);
+        }
+
+        List<Opportunity> opportunitiesToUpdate = new List<Opportunity>();
+
+        for(Opportunity locOpportunity : locationOpportunitiesWithoutParent) {
+            Id accountId = locOpportunity.AccountId;
+            Id parentOpportunityId = accountToParentOpportunityMap.get(accountId);
+
+            if(parentOpportunityId == null) {
+                // No Parent Opportunity exists, create one
+                Opportunity parentOpportunity = new Opportunity(
+                    Name = 'Parent Opportunity for ' + accountId,
+                    StageName = 'Prospecting', // Set appropriate default values
+                    AccountId = accountId,
+                    // Set other necessary fields
+                );
+                insert parentOpportunity;
+
+                locOpportunity.Parent_Opportunity__c = parentOpportunity.Id;
+            } else {
+                // Use existing Parent Opportunity
+                locOpportunity.Parent_Opportunity__c = parentOpportunityId;
+            }
+
+            opportunitiesToUpdate.add(locOpportunity);
+        }
+
+        // Update Location Opportunities
+        if(!opportunitiesToUpdate.isEmpty()) {
+            update opportunitiesToUpdate;
+        }
+    }
+}
